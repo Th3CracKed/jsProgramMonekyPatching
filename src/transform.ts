@@ -6,7 +6,7 @@ import * as t from '@babel/types';
 
 export function transform(code: string): string {
     const ast = parse(code, {
-        plugins: ['typescript']
+        plugins: ['typescript'], sourceFilename: "test.js"
     });
     const variableDeclarator = {
         VariableDeclarator(path: any) {
@@ -54,7 +54,7 @@ export function transform(code: string): string {
             }
         }
     });
-    const result = generate(ast, { sourceMaps: true });
+    const result = generate(ast, { sourceMaps: true, filename: 'filename.txt' }, { "test.js": code });
     console.log(result.map)
     return result.code;
 }
