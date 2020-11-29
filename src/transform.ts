@@ -6,14 +6,14 @@ import * as t from '@babel/types';
 
 export function transform(code: string): string {
     const ast = parse(code, {
-        plugins: ['typescript'], sourceFilename: "test.js"
+        plugins: ['typescript'], sourceFilename: "test.js", sourceType: "module"
     });
     const variableDeclarator = {
         VariableDeclarator(path: any) {
             if (path.node.init && path.node.init.type === "ObjectExpression") {
-
+                const startLine = '' + path.node?.loc?.start?.line;
                 path.node.init.properties.forEach((property: { key: { name: any; }; value: { value: any; }; }) => {
-                    path.node.init.properties.push(addExpression(property.key.name, property.value.value));
+                    path.node.init.properties.push(addExpression(property.key.name, startLine));
                 });
 
             } else if (path.node) {
@@ -28,18 +28,17 @@ export function transform(code: string): string {
     };
     traverse(ast, {
         VariableDeclaration(path) {
-            if (path.node.kind === 'let') {
-                path.traverse(variableDeclarator);
-            }
+            path.traverse(variableDeclarator);
         },
         ExpressionStatement(path) {
+            const startLine = path?.node?.loc?.start?.line;
             let assignmentExpression;
             // TODO replace with switch case !
             if (!(<any>path.node.expression).left) { return; }
             if (t.isIdentifier((<any>path.node.expression).left)) {
                 const operator = (<any>path.node.expression).operator;
                 const left = t.identifier(getSymbolName((<any>path.node.expression).left.name));
-                assignmentExpression = t.assignmentExpression(operator, left, getSymbolCallExpression([t.stringLiteral('source_map')]));
+                assignmentExpression = t.assignmentExpression(operator, left, getSymbolCallExpression([t.stringLiteral(`${startLine}`)]));
             } else if (t.isMemberExpression((<any>path.node.expression).left)) {
                 const operator = (<any>path.node.expression).operator;
                 const right = (<any>path.node.expression).right;
@@ -60,8 +59,9 @@ export function transform(code: string): string {
 }
 
 function addSymbol(node: t.VariableDeclaration): t.VariableDeclaration {
+    const startLine = node?.loc?.start?.line;
     const name = (<any>node).id ? getSymbolName((<any>node).id.name) : "tmp_MyLib";
-    const declarator = t.variableDeclarator(t.identifier(name), getSymbolCallExpression([t.stringLiteral('source_map')]));
+    const declarator = t.variableDeclarator(t.identifier(name), getSymbolCallExpression([t.stringLiteral(`${startLine}`)]));
     return t.variableDeclaration('let', [declarator]);
 }
 
