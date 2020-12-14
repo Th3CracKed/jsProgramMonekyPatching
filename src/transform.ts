@@ -1,60 +1,57 @@
 import { parse } from '@babel/parser';
-import traverse from '@babel/traverse';
+import traverse, { NodePath } from '@babel/traverse';
 import generate from '@babel/generator';
 import * as t from '@babel/types';
+import * as R from 'ramda';
 
 
 export function transform(code: string): string {
     const ast = parse(code, {
         plugins: ['typescript'], sourceFilename: "test.js", sourceType: "module"
     });
-    const variableDeclarator = {
-        VariableDeclarator(path: any) {
-            if (path.node.init && path.node.init.type === "ObjectExpression") {
-                const startLine = '' + path.node?.loc?.start?.line;
-                path.node.init.properties.forEach((property: { key: { name: any; }; value: { value: any; }; }) => {
-                    path.node.init.properties.push(addExpression(property.key.name, startLine));
-                });
-
-            } else if (path.node) {
-
-                if (path.parentPath && path.parentPath.parent && path.parentPath.parent.body) {
-                    path.parentPath.parent.body.push(addSymbol(path.node));
-                }
-
-            }
-
-        }
-    };
+    let rootNode: NodePath<t.Program>;
     traverse(ast, {
-        VariableDeclaration(path) {
-            path.traverse(variableDeclarator);
+        Program(path) {
+            rootNode = path;
         },
-        ExpressionStatement(path) {
+        ObjectExpression(path: any) {
+            const startLine = '' + path.node?.loc?.start?.line;
+            R.clone(path.node.properties).forEach((property: any) => {
+                path.unshiftContainer("properties", addObjectProperty(property.key.name, startLine));
+            });
+        },
+        VariableDeclarator(path: any) {
+            if (!path?.node?.loc) { return; } // todo maybe extract this to separate variable and loop through variables to visit manually to avoid infinite recursive instead of this hack
+            if (path?.node?.init?.type === "ObjectExpression") {
+                return;
+            } else {
+                path?.parentPath?.insertAfter(addSymbol(path.node));
+            }
+        },
+        AssignmentExpression(path: any) {
+            if (!path?.node?.loc) { return; } // todo maybe extract this to separate variable and loop through variables to visit manually to avoid infinite recursive instead of this hack
             const startLine = path?.node?.loc?.start?.line;
             let assignmentExpression;
-            // TODO replace with switch case !
-            if (!(<any>path.node.expression).left) { return; }
-            if (t.isIdentifier((<any>path.node.expression).left)) {
-                const operator = (<any>path.node.expression).operator;
-                const left = t.identifier(getSymbolName((<any>path.node.expression).left.name));
+            if (t.isIdentifier(path.node.left)) {
+                const operator = path.node.operator;
+                const left = t.identifier(getSymbolName(path.node.left.name));
                 assignmentExpression = t.assignmentExpression(operator, left, getSymbolCallExpression([t.stringLiteral(`${startLine}`)]));
-            } else if (t.isMemberExpression((<any>path.node.expression).left)) {
-                const operator = (<any>path.node.expression).operator;
-                const right = (<any>path.node.expression).right;
-                const objectId = t.identifier((<any>path.node.expression).left.object.name);
-                const objectValue = t.callExpression(t.identifier('Symbol'), [t.stringLiteral((<any>path.node.expression).left.property.name)]);
+            } else if (t.isMemberExpression(path.node.left)) {
+                const operator = path.node.operator;
+                const right = t.stringLiteral(`${startLine}`);
+                const objectId = t.identifier(path.node.left.object.name);
+                const objectValue = t.callExpression(t.identifier('Symbol'), [t.stringLiteral(path.node.left.property.name)]);
                 const mutatedLeftVal = t.memberExpression(objectId, objectValue, true);
 
                 assignmentExpression = t.assignmentExpression(operator, mutatedLeftVal, right);
             }
             if (assignmentExpression) {
-                (<any>path.parent).body.push(t.expressionStatement(assignmentExpression));
+                path.parentPath.insertAfter(t.expressionStatement(assignmentExpression));
             }
         }
     });
     const result = generate(ast, { sourceMaps: true, filename: 'filename.txt' }, { "test.js": code });
-    console.log(result.map)
+    //console.log(result.map)
     return result.code;
 }
 
@@ -65,7 +62,7 @@ function addSymbol(node: t.VariableDeclaration): t.VariableDeclaration {
     return t.variableDeclaration('let', [declarator]);
 }
 
-function addExpression(keyName: string, value: string): t.ObjectProperty {
+function addObjectProperty(keyName: string, value: string): t.ObjectProperty {
     return t.objectProperty(
         t.callExpression(t.identifier('Symbol'), [t.stringLiteral(keyName)]),
         t.stringLiteral(value), true
