@@ -58,7 +58,19 @@ let bool = true;
 let somethingUndefined = undefined;
 let somethingNull = null;
 let symbol = Symbol();
+function passMeParams(foo){
+  console.log('Imagine i want to know where foo was assigned')
+}
+passMeParams(foo);
+/*
+function doStuff(){
+  let bq2 = 'l';
+  bq2 = 'pff'
+  return bq2;
+}
 
+let returnVar = doStuff();
+*/
 `;
 const transformedCode = customTransform(code);
 console.log(transformedCode);
