@@ -7,7 +7,7 @@ import * as R from 'ramda';
 
 export function transform(code: string): string {
     const ast = parse(code, {
-        plugins: ['typescript'], sourceFilename: "test.js", sourceType: "module"
+        sourceFilename: "test.js", sourceType: "module"
     });
     traverse(ast, {
         ObjectExpression(path: any) {
@@ -46,24 +46,18 @@ export function transform(code: string): string {
             }
         },
         FunctionDeclaration(path: any) {
-            R.clone(path.node.params).forEach((param: Node) => {
-                /*
-                    TODO check if identifier is primitive or object
-                    if object don't pass the argument since it's stored internally
-                */
-                if (t.isIdentifier(param)) {
+            R.clone(path.node.params).forEach((param: any) => {
+                const paramNode = path?.context?.scope?.bindings[param?.name];
+                if (paramNode?.path?.node?.init?.type !== 'ObjectExpression' && t.isIdentifier(param)) {
                     path.node.params.push(t.identifier(getSymbolName(param?.name)))
                 }
             })
         },
         CallExpression(path) {
             if (path?.node?.callee?.type === 'Identifier' && path?.node?.callee?.name !== 'Symbol') {
-                R.clone(path?.node?.arguments).forEach(argument => {
-                    /*
-                        TODO check if identifier is primitive or object
-                        if object don't pass the argument since it's stored internally
-                    */
-                    if (t.isIdentifier(argument)) {
+                R.clone(path?.node?.arguments).forEach((argument: any) => {
+                    const paramNode = path?.context?.scope?.bindings[argument?.name];
+                    if ((<any>paramNode?.path?.node)?.init?.type !== 'ObjectExpression' && t.isIdentifier(argument)) {
                         path.node.arguments.push(t.identifier(getSymbolName(argument?.name)))
                     }
                 })
