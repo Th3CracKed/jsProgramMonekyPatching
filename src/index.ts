@@ -44,24 +44,10 @@ import { transform } from '@babel/core';
 //  console.log(\`Server started on server ${3000}\`);
 // });`;
 
-const code = `let a = 2;
-const obj = { a: "not_a", b: "note_b"};
-obj.ta = "a";
-a = 3;
-(function() {
-    obj.ta = "b";
-  })()
-const x = 2n ** 53n;
-let foo = 42;
-let bar = 'bar';
-let bool = true;
-let somethingUndefined = undefined;
-let somethingNull = null;
-let symbol = Symbol();
-function passMeParams(foo){
-  console.log('Imagine i want to know where foo was assigned')
+const code = `
+for(let i = 0; i < 10; i++){
+  console.log('iteration = ' + i);
 }
-passMeParams(foo);
 /*
 function doStuff(){
   let bq2 = 'l';

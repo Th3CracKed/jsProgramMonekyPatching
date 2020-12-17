@@ -18,11 +18,9 @@ export function transform(code: string): string {
         },
         VariableDeclarator(path: any) {
             if (!path?.node?.loc) { return; } // todo maybe extract this to separate variable and loop through variables to visit manually to avoid infinite recursive instead of this hack
-            if (path?.node?.init?.type === "ObjectExpression") {
-                return;
-            } else {
-                path?.parentPath?.insertAfter(addSymbol(path?.node?.loc?.start?.line, path?.node?.id?.name));
-            }
+            if (path?.node?.init?.type === "ObjectExpression") { return; }
+            if (path?.parentPath.parentPath?.type === "ForStatement") { return; }
+            path?.parentPath?.insertAfter(addSymbol(path?.node?.loc?.start?.line, path?.node?.id?.name));
         },
         AssignmentExpression(path: any) {
             if (!path?.node?.loc) { return; } // todo maybe extract this to separate variable and loop through variables to visit manually to avoid infinite recursive instead of this hack
