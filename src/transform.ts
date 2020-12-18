@@ -13,6 +13,7 @@ export function transform(code: string): string {
         ObjectExpression(path: any) {
             const reference = { mutations: [path.node?.loc?.start?.line] };
             R.clone(path.node.properties).forEach((property: any) => {
+                // TODO use Symbol.for("ta") instead of normal Symbol
                 path.unshiftContainer("properties", addObjectProperty(property.key.name, JSON.stringify(reference)));
             });
         },
@@ -47,18 +48,18 @@ export function transform(code: string): string {
             R.clone(path.node.params).forEach((param: any) => {
                 const paramNode = path?.context?.scope?.bindings[param?.name];
                 if (paramNode?.path?.node?.init?.type !== 'ObjectExpression' && t.isIdentifier(param)) {
-                    path.node.params.push(t.identifier(getSymbolName(param?.name)))
+                    path.node.params.push(t.identifier(getSymbolName(param?.name)));
                 }
-            })
+            });
         },
         CallExpression(path) {
             if (path?.node?.callee?.type === 'Identifier' && path?.node?.callee?.name !== 'Symbol') {
                 R.clone(path?.node?.arguments).forEach((argument: any) => {
                     const paramNode = path?.context?.scope?.bindings[argument?.name];
                     if ((<any>paramNode?.path?.node)?.init?.type !== 'ObjectExpression' && t.isIdentifier(argument)) {
-                        path.node.arguments.push(t.identifier(getSymbolName(argument?.name)))
+                        path.node.arguments.push(t.identifier(getSymbolName(argument?.name)));
                     }
-                })
+                });
             }
         }
     });

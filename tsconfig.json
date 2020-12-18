@@ -16,6 +16,7 @@
 	},
 	"exclude": [
 		"node_modules",
-		".vscode-test"
+		"src/**/*.test.ts",
+		"jest.config.ts"
 	]
 }
