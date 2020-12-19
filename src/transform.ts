@@ -21,7 +21,16 @@ export function transform(code: string): string {
             if (!path?.node?.loc) { return; } // todo maybe extract this to separate variable and loop through variables to visit manually to avoid infinite recursive instead of this hack
             if (path?.node?.init?.type === "ObjectExpression") { return; }
             if (path?.parentPath.parentPath?.type === "ForStatement") { return; }
-            path?.parentPath?.insertAfter(addSymbol(path?.node?.loc?.start?.line, path?.node?.id?.name));
+            if (path?.node?.init?.type === 'ArrowFunctionExpression') {
+                R.clone(path.node.init.params).forEach((param: any) => {
+                    const paramNode = path?.context?.scope?.bindings[param?.name];
+                    if (isPrimitiveVariable(paramNode, param)) {
+                        path.node.init.params.push(t.identifier(getSymbolName(param?.name)));
+                    }
+                });
+            }else{
+                path?.parentPath?.insertAfter(addSymbol(path?.node?.loc?.start?.line, path?.node?.id?.name));
+            }
         },
         AssignmentExpression(path: any) {
             if (!path?.node?.loc) { return; } // todo maybe extract this to separate variable and loop through variables to visit manually to avoid infinite recursive instead of this hack
@@ -47,7 +56,7 @@ export function transform(code: string): string {
         FunctionDeclaration(path: any) {
             R.clone(path.node.params).forEach((param: any) => {
                 const paramNode = path?.context?.scope?.bindings[param?.name];
-                if (paramNode?.path?.node?.init?.type !== 'ObjectExpression' && t.isIdentifier(param)) {
+                if (isPrimitiveVariable(paramNode, param)) {
                     path.node.params.push(t.identifier(getSymbolName(param?.name)));
                 }
             });
@@ -65,6 +74,10 @@ export function transform(code: string): string {
     });
     const result = generate(ast, { sourceMaps: true, filename: 'filename.txt' }, { "test.js": code });
     return result.code;
+}
+
+function isPrimitiveVariable(paramNode: any, param: any) {
+    return paramNode?.path?.node?.init?.type !== 'ObjectExpression' && t.isIdentifier(param);
 }
 
 function addSymbol(startLine: number, name: string): t.VariableDeclaration {

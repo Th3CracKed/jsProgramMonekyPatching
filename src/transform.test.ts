@@ -98,3 +98,37 @@ obj[Symbol("ta")] = "{\\"mutations\\":[1]}";`;
   });
 
 });
+
+describe('Code transformation for functions', () => {
+
+  test('Expect transformation to add symbols arguments to the function declaration', () => {
+    const transformedCode = transform(`
+    function passMeParams(foo){
+      console.log('Imagine i want to know where foo was assigned');
+    }
+  `);
+    const expectedResult = `function passMeParams(foo, foo_MyLib) {
+  console.log('Imagine i want to know where foo was assigned');
+}`;
+    expect(transformedCode).toEqual(expectedResult);
+  });
+
+  test('Expect transformation to add symbols arguments to the function call', () => {
+    const transformedCode = transform(`passMeParams(foo);`);
+    const expectedResult = `passMeParams(foo, foo_MyLib);`;
+    expect(transformedCode).toEqual(expectedResult);
+  });
+
+  test('Expect transformation to add symbols argument to lambda functions declaration', () => {
+    const transformedCode = transform(`
+    const passMeParams = (foo) => {
+      console.log('Imagine i want to know where foo was assigned');
+    };
+  `);
+    const expectedResult = `const passMeParams = (foo, foo_MyLib) => {
+  console.log('Imagine i want to know where foo was assigned');
+};`;
+    expect(transformedCode).toEqual(expectedResult);
+  });
+
+});
