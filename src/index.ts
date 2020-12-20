@@ -74,7 +74,7 @@ function doStuff(){
 
 let returnVar = doStuff();
 
-function doStuff(): [string, Symbol] {
+function doStuff() {
     let bq2 = 'l';
     let bq2_MyLib = Symbol("{\"mutations\":[16]}");
     bq2 = 'pff';

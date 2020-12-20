@@ -45,10 +45,22 @@ let symbol_MyLib = Symbol("{\\"mutations\\":[1]}");`;
     expect(transformedCode).toEqual(expectedResult);
   });
 
-  test('Expect transformation to add symbol when encountering a primitive variable assignment', () => {
+  test('Expect transformation to add symbol when encountering a primitive variable assignment without a previous variable declaration', () => {
     const transformedCode = transform(`a = 3;`);
     const expectedResult = `a = 3;
 a_MyLib = Symbol("{\\"mutations\\":[1]}");`;
+    expect(transformedCode).toEqual(expectedResult);
+  });
+
+  test('Expect transformation to add push mutation position when encountering a primitive variable assignment with a previous variable declaration', () => {
+    const transformedCode = transform(`let a = 2;
+a = 3;`);
+    const expectedResult = `let a = 2;
+let a_MyLib = Symbol("{\\"mutations\\":[1]}");
+a = 3;
+a_MyLib_parsed = JSON.parse(a_MyLib.description);
+a_MyLib_parsed.mutations.push(2);
+a_MyLib = Symbol(JSON.stringify(a_MyLib_parsed));`;
     expect(transformedCode).toEqual(expectedResult);
   });
 
@@ -81,19 +93,25 @@ let somethingNull_MyLib = Symbol("{\\"mutations\\":[1]}");`;
     expect(transformedCode).toEqual(expectedResult);
   });
 
-  test('Expect transformation to add symbol when encountering an object assignation into the same object', () => {
+  test('Expect transformation to add symbol when encountering an object assignation without a variable declaration into the same object', () => {
     const transformedCode = transform(`obj.ta = "a";`);
     const expectedResult = `obj.ta = "a";
 obj[Symbol("ta")] = "{\\"mutations\\":[1]}";`;
     expect(transformedCode).toEqual(expectedResult);
   });
 
-  test('Expect transformation to add symbol when encountering an object assignation into the same object', () => {
+  test('Expect transformation to add symbol when encountering an object assignation without a variable declaration into the same object inside an IIFE', () => {
     const transformedCode = transform(`(function() { obj.ta = "b"; })()`);
     const expectedResult = `(function () {
   obj.ta = "b";
   obj[Symbol("ta")] = "{\\"mutations\\":[1]}";
 })();`;
+    expect(transformedCode).toEqual(expectedResult);
+  });
+
+  test('Expect transformation to push nothing when encountering an empty object declaration', () => {
+    const transformedCode = transform(`const obj = {};`);
+    const expectedResult = `const obj = {};`;
     expect(transformedCode).toEqual(expectedResult);
   });
 
