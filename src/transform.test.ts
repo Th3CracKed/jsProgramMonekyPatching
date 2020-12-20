@@ -149,4 +149,35 @@ describe('Code transformation for functions', () => {
     expect(transformedCode).toEqual(expectedResult);
   });
 
+  test('Expect transformation to add symbols in the return result of functions declaration', () => {
+    const transformedCode = transform(`function doStuff(){
+      let bq2 = 'l';
+      return bq2;
+    }`);
+    const expectedResult = `function doStuff() {
+  let bq2 = 'l';
+  let bq2_MyLib = Symbol("{\\"mutations\\":[2]}");
+  return [bq2, bq2_MyLib];
+}`;
+    expect(transformedCode).toEqual(expectedResult);
+  });
+
+  test('Expect transformation to add symbols in the return result of functions declaration and call', () => {
+    const transformedCode = transform(`function doStuff(){
+      let bq2 = 'l';
+      return bq2;
+    }
+    let returnVar = doStuff();`);
+    const expectedResult = `function doStuff() {
+  let bq2 = 'l';
+  let bq2_MyLib = Symbol("{\\"mutations\\":[2]}");
+  return [bq2, bq2_MyLib];
+}
+let [returnVar2, returnVar_MyLib] = doStuff();
+let returnVar_MyLib1 = JSON.parse(returnVar_MyLib.description);
+returnVar_MyLib1.mutations.push(22);
+returnVar_MyLib = Symbol(JSON.stringify(returnVar_MyLib1));`;
+    expect(transformedCode).toEqual(expectedResult);
+  });
+
 });
