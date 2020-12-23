@@ -58,7 +58,7 @@ a = 3;`);
     const expectedResult = `let a = 2;
 let a_MyLib = Symbol("{\\"mutations\\":[1]}");
 a = 3;
-a_MyLib_parsed = JSON.parse(a_MyLib.description);
+let a_MyLib_parsed = JSON.parse(a_MyLib.description);
 a_MyLib_parsed.mutations.push(2);
 a_MyLib = Symbol(JSON.stringify(a_MyLib_parsed));`;
     expect(transformedCode).toEqual(expectedResult);
@@ -162,7 +162,7 @@ describe('Code transformation for functions', () => {
     expect(transformedCode).toEqual(expectedResult);
   });
 
-  test('Expect transformation to add symbols in the return result of functions declaration and call', () => {
+  test('Expect transformation to add symbols in the return result of functions declaration and in the call that store the return type in new variable', () => {
     const transformedCode = transform(`function doStuff(){
       let bq2 = 'l';
       return bq2;
@@ -173,10 +173,30 @@ describe('Code transformation for functions', () => {
   let bq2_MyLib = Symbol("{\\"mutations\\":[2]}");
   return [bq2, bq2_MyLib];
 }
-let [returnVar2, returnVar_MyLib] = doStuff();
-let returnVar_MyLib1 = JSON.parse(returnVar_MyLib.description);
-returnVar_MyLib1.mutations.push(22);
-returnVar_MyLib = Symbol(JSON.stringify(returnVar_MyLib1));`;
+
+let [returnVar, returnVar_MyLib] = doStuff();
+let returnVar_MyLib_parsed = JSON.parse(returnVar_MyLib.description);
+returnVar_MyLib_parsed.mutations.push(5);
+returnVar_MyLib = Symbol(JSON.stringify(returnVar_MyLib_parsed));`;
+    expect(transformedCode).toEqual(expectedResult);
+  });
+
+  test('Expect transformation to add symbols in the return result of functions declaration and in the call that store the return type in existing variable', () => {
+    const transformedCode = transform(`function doStuff(){
+      let bq2 = 'l';
+      return bq2;
+    }
+    returnVar = doStuff();`);
+    const expectedResult = `function doStuff() {
+  let bq2 = 'l';
+  let bq2_MyLib = Symbol("{\\"mutations\\":[2]}");
+  return [bq2, bq2_MyLib];
+}
+
+[returnVar, returnVar_MyLib] = doStuff();
+let returnVar_MyLib_parsed = JSON.parse(returnVar_MyLib.description);
+returnVar_MyLib_parsed.mutations.push(5);
+returnVar_MyLib = Symbol(JSON.stringify(returnVar_MyLib_parsed));`;
     expect(transformedCode).toEqual(expectedResult);
   });
 

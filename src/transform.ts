@@ -19,64 +19,80 @@ export function transform(code: string): string {
             if (path?.parentPath.parentPath?.type === "ForStatement") { return; }
             if (path?.node?.init?.type === 'ArrowFunctionExpression') {
                 appendArgumentsToArrowFunctionDeclaration(path);
+            } else if (
+                t.isCallExpression(path?.node?.init) &&
+                path?.node?.init?.callee?.name !== 'Symbol' &&
+                t.isIdentifier(path?.node?.id)
+            ) {
+                addSymbolForFunctionResult(path);
             } else {
                 path?.parentPath?.insertAfter(addSymbol(path?.node?.loc?.start?.line, path?.node?.id?.name));
             }
         },
         AssignmentExpression(path: any) {
             if (!path?.node?.loc) { return; } // todo maybe extract this to separate variable and loop through variables to visit manually to avoid infinite recursive instead of this hack
-            const mutationPos = path.node?.loc?.start?.line;
+            const mutationPos: number = path.node?.loc?.start?.line;
             const reference = { mutations: [mutationPos] };
             if (t.isIdentifier(path.node.left)) {
-                const operator = path.node.operator;
-                const symbolName = getSymbolName(path.node.left.name);
-                const left = t.identifier(symbolName);
-                const symbolAlreadyExists = doSymbolAlreadyExists(path, symbolName); // todo apply this to member expression 
-                if (symbolAlreadyExists) {
-                    const statementsToAdd = addMutationPositionToExistingSymbol(symbolName, mutationPos);
-                    statementsToAdd.forEach(statement => path.parentPath.insertAfter(statement));
+                if (t.isCallExpression(path.node.right)) {
+                    assignSymbolForFunctionResult(path, mutationPos);
                 } else {
-                    const assignmentExpression = t.assignmentExpression(operator, left, getSymbol([t.stringLiteral(JSON.stringify(reference))]));
-                    path.parentPath.insertAfter(t.expressionStatement(assignmentExpression));
+                    addSymbolForPrimitiveAssignment(path, reference, mutationPos);
                 }
             } else if (t.isMemberExpression(path.node.left)) {
-                const operator = path.node.operator;
-                const right = t.stringLiteral(JSON.stringify(reference));
-                const objectId = t.identifier(path.node.left.object.name);
-                const objectValue = t.callExpression(t.identifier('Symbol'), [t.stringLiteral(path.node.left.property.name)]);
-                const mutatedLeftVal = t.memberExpression(objectId, objectValue, true);
-                const assignmentExpression = t.assignmentExpression(operator, mutatedLeftVal, right);
-                path.parentPath.insertAfter(t.expressionStatement(assignmentExpression));
+                addSymbolForObjectAssignment(path, reference);
             }
         },
         FunctionDeclaration(path: any) {
             appendArgumentsToFunctionDeclaration(path);
             appendSymbolsIntoReturnOfFunctionDeclaration(path);
         },
-        CallExpression(path: any) {
+        CallExpression(path) {
             appendArgumentsToFunctionCall(path);
-            // const resultVariableNode: any = path?.parentPath?.parentPath?.node;
-            // const resultVariableName = resultVariableNode?.declarations[0]?.id?.name;
-            // const symbolName = getSymbolName(resultVariableName);
-            // path?.replaceWith(t.memberExpression(path?.node, t.numericLiteral(0), true));
-            // const symbolDeclarator = t.variableDeclarator(t.identifier(symbolName), t.memberExpression(path?.node, t.numericLiteral(1), true));
-            // path?.parentPath?.parentPath.insertAfter(t.variableDeclaration('let', [symbolDeclarator]));
         }
     });
     const result = generate(ast, { sourceMaps: true, filename: 'filename.txt' }, { "test.js": code });
     return result.code;
 }
 
-function checkIfFunctionReturnValue(path: any): boolean {
-    const nameOfTheFunctionToCheck = path?.node?.callee?.name;
-    if (nameOfTheFunctionToCheck === 'Symbol') { return false; }
-    const functionNode = path?.parentPath?.parentPath?.container?.find((node: any) =>
-        node?.type === 'FunctionDeclaration' && node?.id?.name === nameOfTheFunctionToCheck);
-    return hasReturnValue(functionNode);
+function assignSymbolForFunctionResult(path: any, mutationPos: number) {
+    const varName = path.node.left.name;
+    const symbolName = getSymbolName(varName);
+    path.node.left = t.arrayPattern([t.identifier(varName), t.identifier(symbolName)]);
+    addMutationPositionToExistingSymbol(path.parentPath, symbolName, mutationPos);
 }
 
-function hasReturnValue(functionNode: t.FunctionExpression): boolean {
-    return functionNode?.body?.body.some((node: any) => node?.type === 'ReturnStatement');
+function addSymbolForFunctionResult(path: any) {
+    const mutationPos: number = path.node?.loc?.start?.line;
+    const varName = path?.node?.id?.name;
+    const symbolName = getSymbolName(varName);
+    const arrayDeclaration = t.arrayPattern([t.identifier(varName), t.identifier(symbolName)]);
+    path.node.id = arrayDeclaration;
+    addMutationPositionToExistingSymbol(path.parentPath, symbolName, mutationPos);
+}
+
+function addSymbolForObjectAssignment(path: any, reference: { mutations: any[]; }) {
+    const operator = path.node.operator;
+    const right = t.stringLiteral(JSON.stringify(reference));
+    const objectId = t.identifier(path.node.left.object.name);
+    const objectValue = t.callExpression(t.identifier('Symbol'), [t.stringLiteral(path.node.left.property.name)]);
+    const mutatedLeftVal = t.memberExpression(objectId, objectValue, true);
+    const assignmentExpression = t.assignmentExpression(operator, mutatedLeftVal, right);
+    const parentStatementPath = path.getStatementParent();
+    parentStatementPath.insertAfter(t.expressionStatement(assignmentExpression));
+}
+
+function addSymbolForPrimitiveAssignment(path: any, reference: { mutations: number[]; }, mutationPos: number) {
+    const operator = path.node.operator;
+    const symbolName = getSymbolName(path.node.left.name);
+    const left = t.identifier(symbolName);
+    const doSymbolExists = doSymbolAlreadyExists(path, symbolName); // todo apply this to member expression 
+    if (doSymbolExists) {
+        addMutationPositionToExistingSymbol(path.parentPath, symbolName, mutationPos);
+    } else {
+        const assignmentExpression = t.assignmentExpression(operator, left, getSymbol([t.stringLiteral(JSON.stringify(reference))]));
+        path.parentPath.insertAfter(t.expressionStatement(assignmentExpression));
+    }
 }
 
 function appendArgumentsToArrowFunctionDeclaration(path: any) {
@@ -125,12 +141,12 @@ function appendArgumentsToFunctionDeclaration(path: any) {
     });
 }
 
-function addMutationPositionToExistingSymbol(symbolName: string, mutationPos: number) {
-    return [
+function addMutationPositionToExistingSymbol(path: any, symbolName: string, mutationPos: number) {
+    [
         getAParsedJsonStoredInSymbol(symbolName),
         pushNewPositionToJson(symbolName, mutationPos),
         stringifyTheNewSymbolIntoJson(symbolName)
-    ];
+    ].forEach(statement => path.insertAfter(statement));
 }
 
 function getAParsedJsonStoredInSymbol(symbolName: string): t.ExpressionStatement {
@@ -152,7 +168,7 @@ function stringifyTheNewSymbolIntoJson(symbolName: string) {
     const memberExpression = t.memberExpression(t.identifier('JSON'), t.identifier('parse'));
     const parameters = [t.memberExpression(t.identifier(symbolName), t.identifier('description'))];
     const right = t.callExpression(memberExpression, parameters);
-    return t.expressionStatement(t.assignmentExpression('=', left, right));
+    return t.variableDeclaration('let', [t.variableDeclarator(left, right)]);
 }
 
 function doSymbolAlreadyExists(path: any, symbolName: string) {
