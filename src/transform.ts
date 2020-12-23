@@ -75,8 +75,8 @@ function addSymbolForObjectAssignment(path: any, reference: { mutations: any[]; 
     const operator = path.node.operator;
     const right = t.stringLiteral(JSON.stringify(reference));
     const objectId = t.identifier(path.node.left.object.name);
-    const objectValue = t.callExpression(t.identifier('Symbol'), [t.stringLiteral(path.node.left.property.name)]);
-    const mutatedLeftVal = t.memberExpression(objectId, objectValue, true);
+    const symbol = getSymbol(path.node.left.property.name, true);
+    const mutatedLeftVal = t.memberExpression(objectId, symbol, true);
     const assignmentExpression = t.assignmentExpression(operator, mutatedLeftVal, right);
     const parentStatementPath = path.getStatementParent();
     parentStatementPath.insertAfter(t.expressionStatement(assignmentExpression));
@@ -90,7 +90,7 @@ function addSymbolForPrimitiveAssignment(path: any, reference: { mutations: numb
     if (doSymbolExists) {
         addMutationPositionToExistingSymbol(path.parentPath, symbolName, mutationPos);
     } else {
-        const assignmentExpression = t.assignmentExpression(operator, left, getSymbol([t.stringLiteral(JSON.stringify(reference))]));
+        const assignmentExpression = t.assignmentExpression(operator, left, getSymbol(JSON.stringify(reference)));
         path.parentPath.insertAfter(t.expressionStatement(assignmentExpression));
     }
 }
@@ -119,7 +119,6 @@ function addSymbolToObject(path: any) {
     const mutationPos = path.node?.loc?.start?.line;
     const reference = { mutations: [mutationPos] };
     R.clone(path.node.properties).forEach((property: any) => {
-        // TODO use Symbol.for("ta") instead of normal Symbol
         path.unshiftContainer("properties", addObjectProperty(property.key.name, JSON.stringify(reference)));
     });
 }
@@ -186,19 +185,23 @@ function isPrimitiveVariable(paramNode: any, param: any) {
 function addSymbol(startLine: number, name: string): t.VariableDeclaration {
     const reference = { mutations: [startLine] };
     const symbolName = getSymbolName(name);
-    const declarator = t.variableDeclarator(t.identifier(symbolName), getSymbol([t.stringLiteral(JSON.stringify(reference))]));
+    const declarator = t.variableDeclarator(t.identifier(symbolName), getSymbol(JSON.stringify(reference)));
     return t.variableDeclaration('let', [declarator]);
 }
 
 function addObjectProperty(keyName: string, value: string): t.ObjectProperty {
     return t.objectProperty(
-        t.callExpression(t.identifier('Symbol'), [t.stringLiteral(keyName)]),
+        getSymbol(keyName, true),
         t.stringLiteral(value), true
     );
 }
 
-function getSymbol(args: any[]): t.CallExpression {
-    return t.callExpression(t.identifier('Symbol'), args);
+function getSymbol(description: string, forObject: boolean = false): t.CallExpression {
+    if (forObject) {
+        return t.callExpression(t.memberExpression(t.identifier('Symbol'), t.identifier('for'), false), [t.stringLiteral(description)]);
+    } else {
+        return t.callExpression(t.identifier('Symbol'), [t.stringLiteral(description)]);
+    }
 }
 
 function getSymbolName(name: string): string {

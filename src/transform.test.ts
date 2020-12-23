@@ -79,8 +79,8 @@ let somethingNull_MyLib = Symbol("{\\"mutations\\":[1]}");`;
   test('Expect transformation to add symbols when encountering an object declaration into the same object', () => {
     const transformedCode = transform(`const obj = { a: "not_a", b: "note_b"};`);
     const expectedResult = `const obj = {
-  [Symbol("b")]: "{\\"mutations\\":[1]}",
-  [Symbol("a")]: "{\\"mutations\\":[1]}",
+  [Symbol.for("b")]: "{\\"mutations\\":[1]}",
+  [Symbol.for("a")]: "{\\"mutations\\":[1]}",
   a: "not_a",
   b: "note_b"
 };`;
@@ -96,7 +96,7 @@ let somethingNull_MyLib = Symbol("{\\"mutations\\":[1]}");`;
   test('Expect transformation to add symbol when encountering an object assignation without a variable declaration into the same object', () => {
     const transformedCode = transform(`obj.ta = "a";`);
     const expectedResult = `obj.ta = "a";
-obj[Symbol("ta")] = "{\\"mutations\\":[1]}";`;
+obj[Symbol.for("ta")] = "{\\"mutations\\":[1]}";`;
     expect(transformedCode).toEqual(expectedResult);
   });
 
@@ -104,7 +104,7 @@ obj[Symbol("ta")] = "{\\"mutations\\":[1]}";`;
     const transformedCode = transform(`(function() { obj.ta = "b"; })()`);
     const expectedResult = `(function () {
   obj.ta = "b";
-  obj[Symbol("ta")] = "{\\"mutations\\":[1]}";
+  obj[Symbol.for("ta")] = "{\\"mutations\\":[1]}";
 })();`;
     expect(transformedCode).toEqual(expectedResult);
   });
