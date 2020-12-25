@@ -1,5 +1,5 @@
 import { parse } from '@babel/parser';
-import traverse from '@babel/traverse';
+import traverse, { NodePath } from '@babel/traverse';
 import generate from '@babel/generator';
 import * as t from '@babel/types';
 import * as R from 'ramda';
@@ -10,6 +10,9 @@ export function transform(code: string): string {
         sourceFilename: "test.js", sourceType: "module"
     });
     traverse(ast, {
+        ObjectProperty(path) {
+            appendArgumentsToFunctionInsideAnObject(path);
+        },
         ObjectExpression(path: any) {
             addSymbolToObject(path);
         },
@@ -53,6 +56,20 @@ export function transform(code: string): string {
     });
     const result = generate(ast, { sourceMaps: true, filename: 'filename.txt' }, { "test.js": code });
     return result.code;
+}
+
+function appendArgumentsToFunctionInsideAnObject(path: any) {
+    if (t.isArrowFunctionExpression(path?.node?.value) ||
+        t.isFunctionExpression(path?.node?.value)
+    ) {
+        const functionLike = path?.node?.value;
+        R.clone(functionLike?.params)?.forEach((param: any) => {
+            const paramNode = path?.context?.scope?.bindings[param?.name];
+            if (isPrimitiveVariable(paramNode, param)) {
+                functionLike.params.push(t.identifier(getSymbolName(param?.name)));
+            }
+        });
+    }
 }
 
 function assignSymbolForFunctionResult(path: any, mutationPos: number) {
