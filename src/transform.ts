@@ -50,8 +50,8 @@ export function transform(code: string): string {
             appendArgumentsToFunctionDeclaration(path);
             appendSymbolsIntoReturnOfFunctionDeclaration(path);
         },
-        CallExpression(path) {
-            appendArgumentsToFunctionCall(path);
+        ExpressionStatement(path) {
+            appendArgumentsToFunctionCallInsideObject(path);
         }
     });
     const result = generate(ast, { sourceMaps: true, filename: 'filename.txt' }, { "test.js": code });
@@ -131,6 +131,19 @@ function appendArgumentsToFunctionCall(path: any) {
         });
     }
 }
+
+
+function appendArgumentsToFunctionCallInsideObject(path: NodePath<t.ExpressionStatement>) {
+    if (t.isCallExpression(path?.node?.expression)) {
+        R.clone(path?.node?.expression?.arguments).forEach((argument: any) => {
+            const paramNode = path?.context?.scope?.bindings[argument?.name];
+            if ((<any>paramNode?.path?.node)?.init?.type !== 'ObjectExpression' && t.isIdentifier(argument)) {
+                (<t.CallExpression>path.node.expression).arguments.push(t.identifier(getSymbolName(argument?.name)));
+            }
+        });
+    }
+}
+
 
 function addSymbolToObject(path: any) {
     const mutationPos = path.node?.loc?.start?.line;

@@ -224,4 +224,22 @@ returnVar_MyLib = Symbol(JSON.stringify(returnVar_MyLib_parsed));`;
     expect(transformedCode).toEqual(expectedResult);
   });
 
+  test('Expect transform to pass argument to function call inside the object', () => {
+    const transformedCode = transform(`const obj = {
+      doStuff: function aFunction(aVariable) {}
+    };
+    const myVariable = 2;
+    obj.doStuff(myVariable);
+`);
+
+    const expectedResult = `const obj = {
+  [Symbol.for("doStuff")]: "{\\"mutations\\":[1]}",
+  doStuff: function aFunction(aVariable, aVariable_MyLib) {}
+};
+const myVariable = 2;
+let myVariable_MyLib = Symbol("{\\"mutations\\":[4]}");
+obj.doStuff(myVariable, myVariable_MyLib);`;
+    expect(transformedCode).toEqual(expectedResult);
+  });
+
 });
