@@ -242,4 +242,24 @@ obj.doStuff(myVariable, myVariable_MyLib);`;
     expect(transformedCode).toEqual(expectedResult);
   });
 
+  test('Expect transform to pass append symbol to function return inside the object', () => {
+    const transformedCode = transform(`const obj = {
+      doStuff: function aFunction() {
+        const wow = 'wow'; 
+        return wow;
+      }
+    };
+`);
+
+    const expectedResult = `const obj = {
+  [Symbol.for("doStuff")]: "{\\"mutations\\":[1]}",
+  doStuff: function aFunction() {
+    const wow = 'wow';
+    let wow_MyLib = Symbol("{\\"mutations\\":[3]}");
+    return [wow, wow_MyLib];
+  }
+};`;
+    expect(transformedCode).toEqual(expectedResult);
+  });
+
 });

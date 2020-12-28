@@ -46,6 +46,9 @@ export function transform(code: string): string {
                 addSymbolForObjectAssignment(path, reference);
             }
         },
+        FunctionExpression(path: any) {
+            appendSymbolsIntoReturnOfFunctionDeclaration(path);
+        },
         FunctionDeclaration(path: any) {
             appendArgumentsToFunctionDeclaration(path);
             appendSymbolsIntoReturnOfFunctionDeclaration(path);
