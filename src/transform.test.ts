@@ -115,6 +115,22 @@ obj[Symbol.for("ta")] = "{\\"mutations\\":[1]}";`;
     expect(transformedCode).toEqual(expectedResult);
   });
 
+  test('Expect transformation to copy symbols according to copied properties', () => {
+    const transformedCode = transform(`const obj = {a: 2, b: 3};
+const obj2 = {};
+obj2.a = obj.a;`);
+    const expectedResult = `const obj = {
+  [Symbol.for("b")]: "{\\"mutations\\":[1]}",
+  [Symbol.for("a")]: "{\\"mutations\\":[1]}",
+  a: 2,
+  b: 3
+};
+const obj2 = {};
+obj2.a = obj.a;
+obj2[Symbol.for("a")] = "{\\"mutations\\":[3]}";`;
+    expect(transformedCode).toEqual(expectedResult);
+  });
+
 });
 
 describe('Code transformation for functions', () => {
