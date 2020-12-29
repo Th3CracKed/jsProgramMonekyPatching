@@ -24,10 +24,9 @@ let bool_MyLib = Symbol("{\\"mutations\\":[1]}");`;
     expect(transformedCode).toEqual(expectedResult);
   });
 
-  test('Expect transformation to add symbol when encountering a primitive variable declaration undefined', () => {
+  test('Expect transformation to add nothing when encountering a primitive variable declaration undefined', () => {
     const transformedCode = transform(`let somethingUndefined = undefined;`);
-    const expectedResult = `let somethingUndefined = undefined;
-let somethingUndefined_MyLib = Symbol("{\\"mutations\\":[1]}");`;
+    const expectedResult = `let somethingUndefined = undefined;`;
     expect(transformedCode).toEqual(expectedResult);
   });
 
@@ -130,7 +129,19 @@ obj2.a = obj.a;
 obj2[Symbol.for("a")] = "{\\"mutations\\":[3]}";`;
     expect(transformedCode).toEqual(expectedResult);
   });
+  });
 
+  test('Expect transformation to copy symbols when object is referenced and dont add symbols outside the object', () => {
+    const transformedCode = transform(`const obj = {a: 2, b: 3};
+const obj2 = obj;`);
+    const expectedResult = `const obj = {
+  [Symbol.for("b")]: "{\\"mutations\\":[1]}",
+  [Symbol.for("a")]: "{\\"mutations\\":[1]}",
+  a: 2,
+  b: 3
+};
+const obj2 = obj;`;
+    expect(transformedCode).toEqual(expectedResult);
 });
 
 describe('Code transformation for functions', () => {

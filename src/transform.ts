@@ -20,6 +20,8 @@ export function transform(code: string): string {
             if (!path?.node?.loc) { return; } // todo maybe extract this to separate variable and loop through variables to visit manually to avoid infinite recursive instead of this hack
             if (path?.node?.init?.type === "ObjectExpression") { return; }
             if (path?.parentPath.parentPath?.type === "ForStatement") { return; }
+            const variableName = path?.node?.id?.name;
+            const variableBinding = path?.context?.scope?.bindings[variableName];
             if (path?.node?.init?.type === 'ArrowFunctionExpression') {
                 appendArgumentsToArrowFunctionDeclaration(path);
             } else if (
@@ -28,7 +30,7 @@ export function transform(code: string): string {
                 t.isIdentifier(path?.node?.id)
             ) {
                 addSymbolForFunctionResult(path);
-            } else {
+            } else if (isPrimitiveVariable(variableBinding)) {
                 path?.parentPath?.insertAfter(addSymbol(path?.node?.loc?.start?.line, path?.node?.id?.name));
             }
         },
@@ -54,7 +56,7 @@ export function transform(code: string): string {
             appendSymbolsIntoReturnOfFunctionDeclaration(path);
         },
         ExpressionStatement(path) {
-            appendArgumentsToFunctionCallInsideObject(path);
+            appendArgumentsToFunctionCall(path);
         }
     });
     const result = generate(ast, { sourceMaps: true, filename: 'filename.txt' }, { "test.js": code });
@@ -68,7 +70,7 @@ function appendArgumentsToFunctionInsideAnObject(path: any) {
         const functionLike = path?.node?.value;
         R.clone(functionLike?.params)?.forEach((param: any) => {
             const paramNode = path?.context?.scope?.bindings[param?.name];
-            if (isPrimitiveVariable(paramNode, param)) {
+            if (isPrimitiveVariable(paramNode) && t.isIdentifier(param)) {
                 functionLike.params.push(t.identifier(getSymbolName(param?.name)));
             }
         });
@@ -118,25 +120,13 @@ function addSymbolForPrimitiveAssignment(path: any, reference: { mutations: numb
 function appendArgumentsToArrowFunctionDeclaration(path: any) {
     R.clone(path.node.init.params).forEach((param: any) => {
         const paramNode = path?.context?.scope?.bindings[param?.name];
-        if (isPrimitiveVariable(paramNode, param)) {
+        if (isPrimitiveVariable(paramNode) && t.isIdentifier(param)) {
             path.node.init.params.push(t.identifier(getSymbolName(param?.name)));
         }
     });
 }
 
-function appendArgumentsToFunctionCall(path: any) {
-    if (path?.node?.callee?.type === 'Identifier' && path?.node?.callee?.name !== 'Symbol') {
-        R.clone(path?.node?.arguments).forEach((argument: any) => {
-            const paramNode = path?.context?.scope?.bindings[argument?.name];
-            if ((<any>paramNode?.path?.node)?.init?.type !== 'ObjectExpression' && t.isIdentifier(argument)) {
-                path.node.arguments.push(t.identifier(getSymbolName(argument?.name)));
-            }
-        });
-    }
-}
-
-
-function appendArgumentsToFunctionCallInsideObject(path: NodePath<t.ExpressionStatement>) {
+function appendArgumentsToFunctionCall(path: NodePath<t.ExpressionStatement>) {
     if (t.isCallExpression(path?.node?.expression)) {
         R.clone(path?.node?.expression?.arguments).forEach((argument: any) => {
             const paramNode = path?.context?.scope?.bindings[argument?.name];
@@ -167,7 +157,7 @@ function appendSymbolsIntoReturnOfFunctionDeclaration(path: any) {
 function appendArgumentsToFunctionDeclaration(path: any) {
     R.clone(path.node.params).forEach((param: any) => {
         const paramNode = path?.context?.scope?.bindings[param?.name];
-        if (isPrimitiveVariable(paramNode, param)) {
+        if (isPrimitiveVariable(paramNode) && t.isIdentifier(param)) {
             path.node.params.push(t.identifier(getSymbolName(param?.name)));
         }
     });
@@ -211,8 +201,8 @@ function doSymbolAlreadyExists(path: any, symbolName: string) {
     });
 }
 
-function isPrimitiveVariable(paramNode: any, param: any) {
-    return paramNode?.path?.node?.init?.type !== 'ObjectExpression' && t.isIdentifier(param);
+function isPrimitiveVariable(binding: any) {
+    return binding?.path?.node?.init?.type !== 'ObjectExpression' && binding?.path?.node?.init?.type !== 'Identifier';
 }
 
 function addSymbol(startLine: number, name: string): t.VariableDeclaration {
