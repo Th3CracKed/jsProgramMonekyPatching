@@ -18,11 +18,11 @@ export function transform(code: string): string {
         },
         VariableDeclarator(path: any) {
             if (!path?.node?.loc) { return; } // todo maybe extract this to separate variable and loop through variables to visit manually to avoid infinite recursive instead of this hack
-            if (path?.node?.init?.type === "ObjectExpression") { return; }
-            if (path?.parentPath.parentPath?.type === "ForStatement") { return; }
+            if (t.isObjectExpression(path?.node?.init)) { return; }
+            if (t.isForStatement(path?.parentPath.parentPath)) { return; }
             const variableName = path?.node?.id?.name;
             const variableBinding = path?.context?.scope?.bindings[variableName];
-            if (path?.node?.init?.type === 'ArrowFunctionExpression') {
+            if (t.isArrowFunctionExpression(path?.node?.init)) {
                 appendArgumentsToArrowFunctionDeclaration(path);
             } else if (
                 t.isCallExpression(path?.node?.init) &&
@@ -57,10 +57,30 @@ export function transform(code: string): string {
         },
         ExpressionStatement(path) {
             appendArgumentsToFunctionCall(path);
+            addSymbolOnArrayMutation(path);
         }
     });
     const result = generate(ast, { sourceMaps: true, filename: 'filename.txt' }, { "test.js": code });
     return result.code;
+}
+
+function addSymbolOnArrayMutation(path: NodePath<t.ExpressionStatement>) {
+    if (
+        t.isCallExpression(path?.node?.expression) &&
+        t.isMemberExpression(path?.node?.expression?.callee) &&
+        t.isIdentifier(path?.node?.expression?.callee?.object) &&
+        t.isIdentifier(path?.node?.expression?.callee?.property)
+    ) {
+        const arrayCandidateName = path?.node?.expression?.callee?.object?.name;
+        const binding = path?.context?.scope?.bindings[arrayCandidateName];
+        if (t.isVariableDeclarator(binding?.path?.node) && t.isArrayExpression(binding?.path?.node?.init)) {
+            const mutationPos = path.node?.loc?.start?.line;
+            if (mutationPos) {
+                const symbolName = getSymbolName(arrayCandidateName);
+                addMutationPositionToExistingSymbol(path, symbolName, mutationPos);
+            }
+        }
+    }
 }
 
 function appendArgumentsToFunctionInsideAnObject(path: any) {
@@ -147,7 +167,7 @@ function addSymbolToObject(path: any) {
 }
 
 function appendSymbolsIntoReturnOfFunctionDeclaration(path: any) {
-    const returnNode: t.ReturnStatement = path?.node?.body?.body?.find((node: any) => node?.type === 'ReturnStatement');
+    const returnNode: t.ReturnStatement = path?.node?.body?.body?.find((node: any) => t.isReturnStatement(node));
     if (returnNode) {
         const symbolName = getSymbolName((<any>returnNode.argument)?.name);
         returnNode.argument = t.arrayExpression([returnNode.argument, t.identifier(symbolName)]);

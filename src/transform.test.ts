@@ -289,7 +289,7 @@ obj.doStuff(myVariable, myVariable_MyLib);`;
     expect(transformedCode).toEqual(expectedResult);
   });
 
-  test('Expect transform to pass append symbol to function return inside the object and transform the variable that receive it', () => {
+  test('Expect transform to append symbol to function return inside the object and transform the variable that receive it', () => {
     const transformedCode = transform(`const obj = {
       doStuff: function aFunction() {
         const wow = 'wow'; 
@@ -313,6 +313,28 @@ let returnVar_MyLib_parsed = JSON.parse(returnVar_MyLib.description);
 returnVar_MyLib_parsed.mutations.push(8);
 returnVar_MyLib = Symbol(JSON.stringify(returnVar_MyLib_parsed));`;
     expect(transformedCode).toEqual(expectedResult);
+  });
+
+  describe('Expect transform to add symbol for array manipulation', () => {
+    test('Expect transform to add symbol for array creation', () => {
+      const transformedCode = transform(`const array = [1, 3, 4, 5];`);
+      const expectedResult = `const array = [1, 3, 4, 5];
+let array_MyLib = Symbol("{\\"mutations\\":[1]}");`;
+      expect(transformedCode).toEqual(expectedResult);
+    });
+    
+    test('Expect transform to add symbol for array push', () => {
+      const transformedCode = transform(`const array = [1, 3, 4, 5];
+array.push(3);`);
+      const expectedResult = `const array = [1, 3, 4, 5];
+let array_MyLib = Symbol("{\\"mutations\\":[1]}");
+array.push(3);
+let array_MyLib_parsed = JSON.parse(array_MyLib.description);
+array_MyLib_parsed.mutations.push(2);
+array_MyLib = Symbol(JSON.stringify(array_MyLib_parsed));`;
+      expect(transformedCode).toEqual(expectedResult);
+    });
+
   });
 
 });
