@@ -129,19 +129,19 @@ obj2.a = obj.a;
 obj2[Symbol.for("a")] = "{\\"mutations\\":[3]}";`;
     expect(transformedCode).toEqual(expectedResult);
   });
-  });
+});
 
-  test('Expect transformation to copy symbols when object is referenced and dont add symbols outside the object', () => {
-    const transformedCode = transform(`const obj = {a: 2, b: 3};
+test('Expect transformation to copy symbols when object is referenced and dont add symbols outside the object', () => {
+  const transformedCode = transform(`const obj = {a: 2, b: 3};
 const obj2 = obj;`);
-    const expectedResult = `const obj = {
+  const expectedResult = `const obj = {
   [Symbol.for("b")]: "{\\"mutations\\":[1]}",
   [Symbol.for("a")]: "{\\"mutations\\":[1]}",
   a: 2,
   b: 3
 };
 const obj2 = obj;`;
-    expect(transformedCode).toEqual(expectedResult);
+  expect(transformedCode).toEqual(expectedResult);
 });
 
 describe('Code transformation for functions', () => {
@@ -322,7 +322,7 @@ returnVar_MyLib = Symbol(JSON.stringify(returnVar_MyLib_parsed));`;
 let array_MyLib = Symbol("{\\"mutations\\":[1]}");`;
       expect(transformedCode).toEqual(expectedResult);
     });
-    
+
     test('Expect transform to add symbol for array push', () => {
       const transformedCode = transform(`const array = [1, 3, 4, 5];
 array.push(3);`);
@@ -335,6 +335,27 @@ array_MyLib = Symbol(JSON.stringify(array_MyLib_parsed));`;
       expect(transformedCode).toEqual(expectedResult);
     });
 
+  });
+
+  describe('Expect transform to add symbol when class property change', () => {
+    test('add symbol for constructor properties assignments', () => {
+      const transformedCode = transform(`class Rectangle {
+        constructor(height, width) {
+          this.height = height;
+          this.width = width;
+        }
+      }`);
+      const expectedResult = `class Rectangle {
+  constructor(height, width) {
+    this.height = height;
+    this.height_MyLib = Symbol("{\\"mutations\\":[3]}");
+    this.width = width;
+    this.width_MyLib = Symbol("{\\"mutations\\":[4]}");
+  }
+
+}`;
+      expect(transformedCode).toEqual(expectedResult);
+    });
   });
 
 });

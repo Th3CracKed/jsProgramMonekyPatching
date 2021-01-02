@@ -37,15 +37,18 @@ export function transform(code: string): string {
         AssignmentExpression(path: any) {
             if (!path?.node?.loc) { return; } // todo maybe extract this to separate variable and loop through variables to visit manually to avoid infinite recursive instead of this hack
             const mutationPos: number = path.node?.loc?.start?.line;
-            const reference = { mutations: [mutationPos] };
             if (t.isIdentifier(path.node.left)) {
                 if (t.isCallExpression(path.node.right)) {
                     assignSymbolForFunctionResult(path, mutationPos);
                 } else {
-                    addSymbolForPrimitiveAssignment(path, reference, mutationPos);
+                    addSymbolForPrimitiveAssignment(path, mutationPos);
                 }
             } else if (t.isMemberExpression(path.node.left)) {
-                addSymbolForObjectAssignment(path, reference);
+                if (t.isThisExpression(path.node.left.object)) {
+                    addSymbolForClassAssignment(path, mutationPos);
+                } else {
+                    addSymbolForObjectAssignment(path, mutationPos);
+                }
             }
         },
         FunctionExpression(path: any) {
@@ -64,7 +67,7 @@ export function transform(code: string): string {
     return result.code;
 }
 
-function addSymbolOnArrayMutation(path: NodePath<t.ExpressionStatement>) {
+function addSymbolOnArrayMutation(path: NodePath<t.ExpressionStatement>) { // TODO don't add mutation for array methods that dont mutate (like map)
     if (
         t.isCallExpression(path?.node?.expression) &&
         t.isMemberExpression(path?.node?.expression?.callee) &&
@@ -113,8 +116,20 @@ function addSymbolForFunctionResult(path: any) {
     addMutationPositionToExistingSymbol(path.parentPath, symbolName, mutationPos);
 }
 
-function addSymbolForObjectAssignment(path: any, reference: { mutations: any[]; }) {
+function addSymbolForClassAssignment(path: any, mutationPos: number) {
     const operator = path.node.operator;
+    const reference = { mutations: [mutationPos] };
+    const propertyId = t.identifier(getSymbolName(path.node.left.property.name));
+    const mutatedLeftVal = t.memberExpression(t.thisExpression(), propertyId);
+    const right = t.callExpression(t.identifier('Symbol'), [t.stringLiteral(JSON.stringify(reference))]);
+    const assignmentExpression = t.assignmentExpression(operator, mutatedLeftVal, right);
+    const parentStatementPath = path.getStatementParent();
+    parentStatementPath.insertAfter(t.expressionStatement(assignmentExpression));
+}
+
+function addSymbolForObjectAssignment(path: any, mutationPos: number) {
+    const operator = path.node.operator;
+    const reference = { mutations: [mutationPos] };
     const right = t.stringLiteral(JSON.stringify(reference));
     const objectId = t.identifier(path.node.left.object.name);
     const symbol = getSymbol(path.node.left.property.name, true);
@@ -124,7 +139,7 @@ function addSymbolForObjectAssignment(path: any, reference: { mutations: any[]; 
     parentStatementPath.insertAfter(t.expressionStatement(assignmentExpression));
 }
 
-function addSymbolForPrimitiveAssignment(path: any, reference: { mutations: number[]; }, mutationPos: number) {
+function addSymbolForPrimitiveAssignment(path: any, mutationPos: number) {
     const operator = path.node.operator;
     const symbolName = getSymbolName(path.node.left.name);
     const left = t.identifier(symbolName);
@@ -132,6 +147,7 @@ function addSymbolForPrimitiveAssignment(path: any, reference: { mutations: numb
     if (doSymbolExists) {
         addMutationPositionToExistingSymbol(path.parentPath, symbolName, mutationPos);
     } else {
+        const reference = { mutations: [mutationPos] };
         const assignmentExpression = t.assignmentExpression(operator, left, getSymbol(JSON.stringify(reference)));
         path.parentPath.insertAfter(t.expressionStatement(assignmentExpression));
     }
