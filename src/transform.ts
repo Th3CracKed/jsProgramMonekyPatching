@@ -231,9 +231,13 @@ function stringifyTheNewSymbolIntoJson(symbolName: string) {
 
 function doSymbolAlreadyExists(path: any, symbolName: string) {
     return path?.parentPath?.container?.some((node: any) => {
-        return node?.declarations?.some((varDeclaration: any) => {
-            return varDeclaration?.id?.name === symbolName;
-        });
+        if (t.isAssignmentExpression(node?.expression)) {
+            return node.expression.left.name === symbolName;
+        } else {
+            return node?.declarations?.some((varDeclaration: any) => {
+                return varDeclaration?.id?.name === symbolName;
+            });
+        }
     });
 }
 
