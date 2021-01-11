@@ -47,7 +47,23 @@ let symbol_MyLib = Symbol("{\\"mutations\\":[1]}");`;
   test('Expect transformation to add symbol when encountering a primitive variable assignment without a previous variable declaration', () => {
     const transformedCode = transform(`a = 3;`);
     const expectedResult = `a = 3;
-a_MyLib = Symbol("{\\"mutations\\":[1]}");`;
+let isA_MyLibDeclared = true;
+
+try {
+  a_MyLib;
+} catch (e) {
+  if (e.name === "ReferenceError") {
+    isA_MyLibDeclared = false;
+  }
+}
+
+if (isA_MyLibDeclared) {
+  let a_MyLib_parsed = JSON.parse(a_MyLib.description);
+  a_MyLib_parsed.mutations.push(1);
+  a_MyLib = Symbol(JSON.stringify(a_MyLib_parsed));
+} else {
+  var a_MyLib = Symbol("{\\"mutations\\":[1]}");
+}`;
     expect(transformedCode).toEqual(expectedResult);
   });
 
@@ -55,11 +71,42 @@ a_MyLib = Symbol("{\\"mutations\\":[1]}");`;
     const transformedCode = transform(`a = 3;
 a = 4`);
     const expectedResult = `a = 3;
-a_MyLib = Symbol("{\\"mutations\\":[1]}");
+let isA_MyLibDeclared = true;
+
+try {
+  a_MyLib;
+} catch (e) {
+  if (e.name === "ReferenceError") {
+    isA_MyLibDeclared = false;
+  }
+}
+
+if (isA_MyLibDeclared) {
+  let a_MyLib_parsed = JSON.parse(a_MyLib.description);
+  a_MyLib_parsed.mutations.push(1);
+  a_MyLib = Symbol(JSON.stringify(a_MyLib_parsed));
+} else {
+  var a_MyLib = Symbol("{\\"mutations\\":[1]}");
+}
+
 a = 4;
-let a_MyLib_parsed = JSON.parse(a_MyLib.description);
-a_MyLib_parsed.mutations.push(2);
-a_MyLib = Symbol(JSON.stringify(a_MyLib_parsed));`;
+let isA_MyLibDeclared = true;
+
+try {
+  a_MyLib;
+} catch (e) {
+  if (e.name === "ReferenceError") {
+    isA_MyLibDeclared = false;
+  }
+}
+
+if (isA_MyLibDeclared) {
+  let a_MyLib_parsed = JSON.parse(a_MyLib.description);
+  a_MyLib_parsed.mutations.push(2);
+  a_MyLib = Symbol(JSON.stringify(a_MyLib_parsed));
+} else {
+  var a_MyLib = Symbol("{\\"mutations\\":[2]}");
+}`;
     expect(transformedCode).toEqual(expectedResult);
   });
 

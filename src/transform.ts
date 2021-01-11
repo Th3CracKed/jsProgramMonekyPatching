@@ -31,7 +31,7 @@ export function transform(code: string): string {
             ) {
                 addSymbolForFunctionResult(path);
             } else if (isPrimitiveVariable(variableBinding)) {
-                path?.parentPath?.insertAfter(addSymbol(path?.node?.loc?.start?.line, path?.node?.id?.name));
+                path?.parentPath?.insertAfter(declareSymbol('let', path?.node?.loc?.start?.line, path?.node?.id?.name));
             }
         },
         AssignmentExpression(path: any) {
@@ -80,7 +80,7 @@ function addSymbolOnArrayMutation(path: NodePath<t.ExpressionStatement>) { // TO
             const mutationPos = path.node?.loc?.start?.line;
             if (mutationPos) {
                 const symbolName = getSymbolName(arrayCandidateName);
-                addMutationPositionToExistingSymbol(path, symbolName, mutationPos);
+                getMutateExistingSymbolStatement(symbolName, mutationPos).forEach(statement => path.insertAfter(statement));
             }
         }
     }
@@ -104,7 +104,7 @@ function assignSymbolForFunctionResult(path: any, mutationPos: number) {
     const varName = path.node.left.name;
     const symbolName = getSymbolName(varName);
     path.node.left = t.arrayPattern([t.identifier(varName), t.identifier(symbolName)]);
-    addMutationPositionToExistingSymbol(path.parentPath, symbolName, mutationPos);
+    getMutateExistingSymbolStatement(symbolName, mutationPos).forEach(statement => path.parentPath.insertAfter(statement));
 }
 
 function addSymbolForFunctionResult(path: any) {
@@ -113,18 +113,21 @@ function addSymbolForFunctionResult(path: any) {
     const symbolName = getSymbolName(varName);
     const arrayDeclaration = t.arrayPattern([t.identifier(varName), t.identifier(symbolName)]);
     path.node.id = arrayDeclaration;
-    addMutationPositionToExistingSymbol(path.parentPath, symbolName, mutationPos);
+    getMutateExistingSymbolStatement(symbolName, mutationPos).forEach(statement => path.parentPath.insertAfter(statement));
 }
 
 function addSymbolForClassAssignment(path: any, mutationPos: number) {
     const operator = path.node.operator;
     const reference = { mutations: [mutationPos] };
-    const propertyId = t.identifier(getSymbolName(path.node.left.property.name));
-    const mutatedLeftVal = t.memberExpression(t.thisExpression(), propertyId);
-    const right = t.callExpression(t.identifier('Symbol'), [t.stringLiteral(JSON.stringify(reference))]);
-    const assignmentExpression = t.assignmentExpression(operator, mutatedLeftVal, right);
-    const parentStatementPath = path.getStatementParent();
-    parentStatementPath.insertAfter(t.expressionStatement(assignmentExpression));
+    const symbolName = getSymbolName(path.node.left.property.name);
+    const doSymbolExists = doSymbolAlreadyExists(path, symbolName);
+    if (doSymbolExists) {
+        getMutateExistingSymbolStatement(symbolName, mutationPos).forEach(statement => path.parentPath.insertAfter(statement));
+    } else {
+        const mutatedLeftVal = t.memberExpression(t.thisExpression(), t.identifier(symbolName));
+        const assignmentExpression = t.assignmentExpression(operator, mutatedLeftVal, getSymbol(JSON.stringify(reference)));
+        path.getStatementParent().insertAfter(t.expressionStatement(assignmentExpression));
+    }
 }
 
 function addSymbolForObjectAssignment(path: any, mutationPos: number) {
@@ -135,21 +138,16 @@ function addSymbolForObjectAssignment(path: any, mutationPos: number) {
     const symbol = getSymbol(path.node.left.property.name, true);
     const mutatedLeftVal = t.memberExpression(objectId, symbol, true);
     const assignmentExpression = t.assignmentExpression(operator, mutatedLeftVal, right);
-    const parentStatementPath = path.getStatementParent();
-    parentStatementPath.insertAfter(t.expressionStatement(assignmentExpression));
+    path.getStatementParent().insertAfter(t.expressionStatement(assignmentExpression));
 }
 
 function addSymbolForPrimitiveAssignment(path: any, mutationPos: number) {
-    const operator = path.node.operator;
     const symbolName = getSymbolName(path.node.left.name);
-    const left = t.identifier(symbolName);
     const doSymbolExists = doSymbolAlreadyExists(path, symbolName); // todo apply this to member expression 
     if (doSymbolExists) {
-        addMutationPositionToExistingSymbol(path.parentPath, symbolName, mutationPos);
+        getMutateExistingSymbolStatement(symbolName, mutationPos).forEach(statement => path.parentPath.insertAfter(statement));
     } else {
-        const reference = { mutations: [mutationPos] };
-        const assignmentExpression = t.assignmentExpression(operator, left, getSymbol(JSON.stringify(reference)));
-        path.parentPath.insertAfter(t.expressionStatement(assignmentExpression));
+        addSymbol(path, path.node.left.name, mutationPos);
     }
 }
 
@@ -199,12 +197,32 @@ function appendArgumentsToFunctionDeclaration(path: any) {
     });
 }
 
-function addMutationPositionToExistingSymbol(path: any, symbolName: string, mutationPos: number) {
-    [
+function addSymbol(path: any, forVarName: string, mutationPos: number) {
+    const symbolName = getSymbolName(forVarName);
+    const isDeclaredVariableName = `is${symbolName?.charAt(0).toUpperCase() + symbolName?.slice(1)}Declared`;
+    const errorTestExpression = t.binaryExpression('===', t.memberExpression(t.identifier('e'), t.identifier('name')), t.stringLiteral('ReferenceError'));
+    const disableIsDeclaredVariableBlock = t.blockStatement([t.expressionStatement(t.assignmentExpression('=', t.identifier(isDeclaredVariableName), t.booleanLiteral(false)))]);
+    const ifStatement = t.ifStatement(errorTestExpression, disableIsDeclaredVariableBlock);
+    const catchBlock = t.catchClause(t.identifier('e'), t.blockStatement([ifStatement]));
+    path.parentPath.insertAfter(
+        [
+            t.variableDeclaration('let', [t.variableDeclarator(t.identifier(isDeclaredVariableName), t.booleanLiteral(true))]),
+            t.tryStatement(t.blockStatement([t.expressionStatement(t.identifier(symbolName))], []), catchBlock),
+            t.ifStatement(
+                t.identifier(isDeclaredVariableName),
+                t.blockStatement(getMutateExistingSymbolStatement(symbolName, mutationPos).reverse()),
+                t.blockStatement([declareSymbol('var', mutationPos, forVarName)])
+            )
+        ]
+    );
+}
+
+function getMutateExistingSymbolStatement(symbolName: string, mutationPos: number) {
+    return [
         getAParsedJsonStoredInSymbol(symbolName),
         pushNewPositionToJson(symbolName, mutationPos),
         stringifyTheNewSymbolIntoJson(symbolName)
-    ].forEach(statement => path.insertAfter(statement));
+    ];
 }
 
 function getAParsedJsonStoredInSymbol(symbolName: string): t.ExpressionStatement {
@@ -230,14 +248,10 @@ function stringifyTheNewSymbolIntoJson(symbolName: string) {
 }
 
 function doSymbolAlreadyExists(path: any, symbolName: string) {
-    return path?.parentPath?.container?.some((node: any) => {
-        if (t.isAssignmentExpression(node?.expression)) {
-            return node.expression.left.name === symbolName;
-        } else {
-            return node?.declarations?.some((varDeclaration: any) => {
-                return varDeclaration?.id?.name === symbolName;
-            });
-        }
+    return path.getStatementParent()?.container?.some((node: any) => {
+        return node?.declarations?.some((varDeclaration: any) => {
+            return varDeclaration?.id?.name === symbolName;
+        });
     });
 }
 
@@ -245,11 +259,11 @@ function isPrimitiveVariable(binding: any) {
     return binding?.path?.node?.init?.type !== 'ObjectExpression' && binding?.path?.node?.init?.type !== 'Identifier';
 }
 
-function addSymbol(startLine: number, name: string): t.VariableDeclaration {
+function declareSymbol(kind: "var" | "let" | "const", startLine: number, name: string): t.VariableDeclaration {
     const reference = { mutations: [startLine] };
     const symbolName = getSymbolName(name);
     const declarator = t.variableDeclarator(t.identifier(symbolName), getSymbol(JSON.stringify(reference)));
-    return t.variableDeclaration('let', [declarator]);
+    return t.variableDeclaration(kind, [declarator]);
 }
 
 function addObjectProperty(keyName: string, value: string): t.ObjectProperty {
