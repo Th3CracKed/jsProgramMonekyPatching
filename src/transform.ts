@@ -7,7 +7,7 @@ import * as R from 'ramda';
 
 export function transform(code: string): string {
     const ast = parse(code, {
-        sourceFilename: "test.js", sourceType: "module"
+        sourceFilename: "test.js", sourceType: "module", plugins: ['classProperties']
     });
     traverse(ast, {
         ObjectProperty(path) {
@@ -61,10 +61,28 @@ export function transform(code: string): string {
         ExpressionStatement(path) {
             appendArgumentsToFunctionCall(path);
             addSymbolOnArrayMutation(path);
+        },
+        ClassProperty(path) {
+            if (!path?.node?.loc) { return; }
+            addSymbolOnClassProperty(path);
         }
     });
     const result = generate(ast, { sourceMaps: true, filename: 'filename.txt' }, { "test.js": code });
     return result.code;
+}
+
+function addSymbolOnClassProperty(path: NodePath<t.ClassProperty>) {
+    let symbolName;
+    if (t.isIdentifier(path.node.key)) {
+        symbolName = getSymbolName(path.node.key?.name);
+    } else if (t.isStringLiteral(path.node.key) && t.isNumberLiteral(path.node.key)) {
+        symbolName = getSymbolName(path.node.key?.value);
+    } else {
+        return;
+    }
+    const reference = { mutations: [path?.node?.loc?.start?.line] };
+    const symbolAsClassProperty = t.classProperty(t.identifier(symbolName), getSymbol(JSON.stringify(reference)));
+    path.insertAfter(symbolAsClassProperty);
 }
 
 function addSymbolOnArrayMutation(path: NodePath<t.ExpressionStatement>) { // TODO don't add mutation for array methods that dont mutate (like map)

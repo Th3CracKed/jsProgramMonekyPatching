@@ -397,6 +397,17 @@ array_MyLib = Symbol(JSON.stringify(array_MyLib_parsed));`;
   });
 
   describe('Expect transform to add symbol when class property change', () => {
+    test('add symbol for classProperty assignments', () => {
+      const transformedCode = transform(`class Rectangle {
+        height = 100;
+      }`);
+      const expectedResult = `class Rectangle {
+  height = 100;
+  height_MyLib = Symbol("{\\"mutations\\":[2]}");
+}`;
+      expect(transformedCode).toEqual(expectedResult);
+    });
+
     test('add symbol for constructor properties assignments', () => {
       const transformedCode = transform(`class Rectangle {
         constructor(height, width) {
