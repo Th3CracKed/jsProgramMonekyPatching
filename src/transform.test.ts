@@ -407,9 +407,74 @@ array_MyLib = Symbol(JSON.stringify(array_MyLib_parsed));`;
       const expectedResult = `class Rectangle {
   constructor(height, width) {
     this.height = height;
-    this.height_MyLib = Symbol("{\\"mutations\\":[3]}");
+
+    if (this.height_MyLib) {
+      let height_MyLib_parsed = JSON.parse(height_MyLib.description);
+      height_MyLib_parsed.mutations.push(3);
+      this.height_MyLib = Symbol(JSON.stringify(height_MyLib_parsed));
+    } else {
+      this.height_MyLib = Symbol("{\\"mutations\\":[3]}");
+    }
+
     this.width = width;
-    this.width_MyLib = Symbol("{\\"mutations\\":[4]}");
+
+    if (this.width_MyLib) {
+      let width_MyLib_parsed = JSON.parse(width_MyLib.description);
+      width_MyLib_parsed.mutations.push(4);
+      this.width_MyLib = Symbol(JSON.stringify(width_MyLib_parsed));
+    } else {
+      this.width_MyLib = Symbol("{\\"mutations\\":[4]}");
+    }
+  }
+
+}`;
+      expect(transformedCode).toEqual(expectedResult);
+    });
+
+    test('add symbol for method properties assignments', () => {
+      const transformedCode = transform(`class Rectangle {
+            constructor(height, width) {
+              this.height = height;
+              this.width = width;
+            }
+
+          makeSquare() {
+            this.height = this.width;
+          }
+    }`);
+      const expectedResult = `class Rectangle {
+  constructor(height, width) {
+    this.height = height;
+
+    if (this.height_MyLib) {
+      let height_MyLib_parsed = JSON.parse(height_MyLib.description);
+      height_MyLib_parsed.mutations.push(3);
+      this.height_MyLib = Symbol(JSON.stringify(height_MyLib_parsed));
+    } else {
+      this.height_MyLib = Symbol("{\\"mutations\\":[3]}");
+    }
+
+    this.width = width;
+
+    if (this.width_MyLib) {
+      let width_MyLib_parsed = JSON.parse(width_MyLib.description);
+      width_MyLib_parsed.mutations.push(4);
+      this.width_MyLib = Symbol(JSON.stringify(width_MyLib_parsed));
+    } else {
+      this.width_MyLib = Symbol("{\\"mutations\\":[4]}");
+    }
+  }
+
+  makeSquare() {
+    this.height = this.width;
+
+    if (this.height_MyLib) {
+      let height_MyLib_parsed = JSON.parse(height_MyLib.description);
+      height_MyLib_parsed.mutations.push(8);
+      this.height_MyLib = Symbol(JSON.stringify(height_MyLib_parsed));
+    } else {
+      this.height_MyLib = Symbol("{\\"mutations\\":[8]}");
+    }
   }
 
 }`;

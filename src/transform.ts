@@ -117,16 +117,12 @@ function addSymbolForFunctionResult(path: any) {
 }
 
 function addSymbolForClassAssignment(path: any, mutationPos: number) {
-    const operator = path.node.operator;
-    const reference = { mutations: [mutationPos] };
     const symbolName = getSymbolName(path.node.left.property.name);
     const doSymbolExists = doSymbolAlreadyExists(path, symbolName);
     if (doSymbolExists) {
         getMutateExistingSymbolStatement(symbolName, mutationPos).forEach(statement => path.parentPath.insertAfter(statement));
     } else {
-        const mutatedLeftVal = t.memberExpression(t.thisExpression(), t.identifier(symbolName));
-        const assignmentExpression = t.assignmentExpression(operator, mutatedLeftVal, getSymbol(JSON.stringify(reference)));
-        path.getStatementParent().insertAfter(t.expressionStatement(assignmentExpression));
+        addSymbolForClass(path, path.node.left.property.name, mutationPos);
     }
 }
 
@@ -217,6 +213,19 @@ function addSymbol(path: any, forVarName: string, mutationPos: number) {
     );
 }
 
+function addSymbolForClass(path: any, forVarName: string, mutationPos: number) {
+    const symbolName = getSymbolName(forVarName);
+    path.parentPath.insertAfter(
+        [
+            t.ifStatement(
+                t.memberExpression(t.thisExpression(), t.identifier(symbolName)),
+                t.blockStatement(getMutateExistingSymbolStatementForClass(symbolName, mutationPos).reverse()),
+                t.blockStatement([declareSymbolForClass(mutationPos, forVarName)])
+            )
+        ]
+    );
+}
+
 function getMutateExistingSymbolStatement(symbolName: string, mutationPos: number) {
     return [
         getAParsedJsonStoredInSymbol(symbolName),
@@ -225,8 +234,23 @@ function getMutateExistingSymbolStatement(symbolName: string, mutationPos: numbe
     ];
 }
 
+function getMutateExistingSymbolStatementForClass(symbolName: string, mutationPos: number) {
+    return [
+        getAParsedJsonStoredInSymbolForClass(symbolName),
+        pushNewPositionToJson(symbolName, mutationPos),
+        stringifyTheNewSymbolIntoJson(symbolName)
+    ];
+}
+
 function getAParsedJsonStoredInSymbol(symbolName: string): t.ExpressionStatement {
     const left = t.identifier(symbolName);
+    const parameters = [t.callExpression(t.memberExpression(t.identifier('JSON'), t.identifier('stringify')), [t.identifier(`${symbolName}_parsed`)])];
+    const right = t.callExpression(t.identifier('Symbol'), parameters);
+    return t.expressionStatement(t.assignmentExpression('=', left, right));
+}
+
+function getAParsedJsonStoredInSymbolForClass(symbolName: string): t.ExpressionStatement {
+    const left = t.memberExpression(t.thisExpression(), t.identifier(symbolName));
     const parameters = [t.callExpression(t.memberExpression(t.identifier('JSON'), t.identifier('stringify')), [t.identifier(`${symbolName}_parsed`)])];
     const right = t.callExpression(t.identifier('Symbol'), parameters);
     return t.expressionStatement(t.assignmentExpression('=', left, right));
@@ -241,9 +265,9 @@ function pushNewPositionToJson(symbolName: string, mutationPos: number) {
 
 function stringifyTheNewSymbolIntoJson(symbolName: string) {
     const left = t.identifier(`${symbolName}_parsed`);
-    const memberExpression = t.memberExpression(t.identifier('JSON'), t.identifier('parse'));
+    const jsonParse = t.memberExpression(t.identifier('JSON'), t.identifier('parse'));
     const parameters = [t.memberExpression(t.identifier(symbolName), t.identifier('description'))];
-    const right = t.callExpression(memberExpression, parameters);
+    const right = t.callExpression(jsonParse, parameters);
     return t.variableDeclaration('let', [t.variableDeclarator(left, right)]);
 }
 
@@ -264,6 +288,13 @@ function declareSymbol(kind: "var" | "let" | "const", startLine: number, name: s
     const symbolName = getSymbolName(name);
     const declarator = t.variableDeclarator(t.identifier(symbolName), getSymbol(JSON.stringify(reference)));
     return t.variableDeclaration(kind, [declarator]);
+}
+
+function declareSymbolForClass(startLine: number, name: string): t.ExpressionStatement {
+    const reference = { mutations: [startLine] };
+    const symbolName = getSymbolName(name);
+    const left = t.memberExpression(t.thisExpression(), t.identifier(symbolName));
+    return t.expressionStatement(t.assignmentExpression('=', left, getSymbol(JSON.stringify(reference))));
 }
 
 function addObjectProperty(keyName: string, value: string): t.ObjectProperty {
