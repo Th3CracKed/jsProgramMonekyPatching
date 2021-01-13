@@ -137,8 +137,12 @@ let somethingNull_MyLib = Symbol("{\\"mutations\\":[1]}");`;
   test('Expect transformation to add symbols when encountering an object declaration into the same object', () => {
     const transformedCode = transform(`const obj = { a: "not_a", b: "note_b"};`);
     const expectedResult = `const obj = {
-  [Symbol.for("b")]: "{\\"mutations\\":[1]}",
-  [Symbol.for("a")]: "{\\"mutations\\":[1]}",
+  [Symbol.for("b")]: {
+    mutations: [1]
+  },
+  [Symbol.for("a")]: {
+    mutations: [1]
+  },
   a: "not_a",
   b: "note_b"
 };`;
@@ -154,7 +158,37 @@ let somethingNull_MyLib = Symbol("{\\"mutations\\":[1]}");`;
   test('Expect transformation to add symbol when encountering an object assignation without a variable declaration into the same object', () => {
     const transformedCode = transform(`obj.ta = "a";`);
     const expectedResult = `obj.ta = "a";
-obj[Symbol.for("ta")] = "{\\"mutations\\":[1]}";`;
+
+if (obj[Symbol.for("ta")]) {
+  obj[Symbol.for("ta")].mutations.push(1);
+} else {
+  obj[Symbol.for("ta")] = {
+    mutations: [1]
+  };
+}`;
+    expect(transformedCode).toEqual(expectedResult);
+  });
+
+  test('Expect transformation to add symbol when encountering an object assignation without a variable declaration into the same object', () => {
+    const transformedCode = transform(`const obj = {
+a: "not_a"
+};
+obj.ta = "a";`);
+    const expectedResult = `const obj = {
+  [Symbol.for("a")]: {
+    mutations: [1]
+  },
+  a: "not_a"
+};
+obj.ta = "a";
+
+if (obj[Symbol.for("ta")]) {
+  obj[Symbol.for("ta")].mutations.push(4);
+} else {
+  obj[Symbol.for("ta")] = {
+    mutations: [4]
+  };
+}`;
     expect(transformedCode).toEqual(expectedResult);
   });
 
@@ -162,7 +196,14 @@ obj[Symbol.for("ta")] = "{\\"mutations\\":[1]}";`;
     const transformedCode = transform(`(function() { obj.ta = "b"; })()`);
     const expectedResult = `(function () {
   obj.ta = "b";
-  obj[Symbol.for("ta")] = "{\\"mutations\\":[1]}";
+
+  if (obj[Symbol.for("ta")]) {
+    obj[Symbol.for("ta")].mutations.push(1);
+  } else {
+    obj[Symbol.for("ta")] = {
+      mutations: [1]
+    };
+  }
 })();`;
     expect(transformedCode).toEqual(expectedResult);
   });
@@ -178,14 +219,25 @@ obj[Symbol.for("ta")] = "{\\"mutations\\":[1]}";`;
 const obj2 = {};
 obj2.a = obj.a;`);
     const expectedResult = `const obj = {
-  [Symbol.for("b")]: "{\\"mutations\\":[1]}",
-  [Symbol.for("a")]: "{\\"mutations\\":[1]}",
+  [Symbol.for("b")]: {
+    mutations: [1]
+  },
+  [Symbol.for("a")]: {
+    mutations: [1]
+  },
   a: 2,
   b: 3
 };
 const obj2 = {};
 obj2.a = obj.a;
-obj2[Symbol.for("a")] = "{\\"mutations\\":[3]}";`;
+
+if (obj2[Symbol.for("a")]) {
+  obj2[Symbol.for("a")].mutations.push(3);
+} else {
+  obj2[Symbol.for("a")] = {
+    mutations: [3]
+  };
+}`;
     expect(transformedCode).toEqual(expectedResult);
   });
 });
@@ -194,8 +246,12 @@ test('Expect transformation to copy symbols when object is referenced and dont a
   const transformedCode = transform(`const obj = {a: 2, b: 3};
 const obj2 = obj;`);
   const expectedResult = `const obj = {
-  [Symbol.for("b")]: "{\\"mutations\\":[1]}",
-  [Symbol.for("a")]: "{\\"mutations\\":[1]}",
+  [Symbol.for("b")]: {
+    mutations: [1]
+  },
+  [Symbol.for("a")]: {
+    mutations: [1]
+  },
   a: 2,
   b: 3
 };
@@ -292,7 +348,9 @@ returnVar_MyLib = Symbol(JSON.stringify(returnVar_MyLib_parsed));`;
     };`);
 
     const expectedResult = `const obj = {
-  [Symbol.for("doStuff")]: "{\\"mutations\\":[1]}",
+  [Symbol.for("doStuff")]: {
+    mutations: [1]
+  },
   doStuff: (aVariable, aVariable_MyLib) => {}
 };`;
     expect(transformedCode).toEqual(expectedResult);
@@ -304,7 +362,9 @@ returnVar_MyLib = Symbol(JSON.stringify(returnVar_MyLib_parsed));`;
     };`);
 
     const expectedResult = `const obj = {
-  [Symbol.for("doStuff")]: "{\\"mutations\\":[1]}",
+  [Symbol.for("doStuff")]: {
+    mutations: [1]
+  },
   doStuff: function aFunction(aVariable, aVariable_MyLib) {}
 };`;
     expect(transformedCode).toEqual(expectedResult);
@@ -319,7 +379,9 @@ returnVar_MyLib = Symbol(JSON.stringify(returnVar_MyLib_parsed));`;
 `);
 
     const expectedResult = `const obj = {
-  [Symbol.for("doStuff")]: "{\\"mutations\\":[1]}",
+  [Symbol.for("doStuff")]: {
+    mutations: [1]
+  },
   doStuff: function aFunction(aVariable, aVariable_MyLib) {}
 };
 const myVariable = 2;
@@ -338,7 +400,9 @@ obj.doStuff(myVariable, myVariable_MyLib);`;
 `);
 
     const expectedResult = `const obj = {
-  [Symbol.for("doStuff")]: "{\\"mutations\\":[1]}",
+  [Symbol.for("doStuff")]: {
+    mutations: [1]
+  },
   doStuff: function aFunction() {
     const wow = 'wow';
     let wow_MyLib = Symbol("{\\"mutations\\":[3]}");
@@ -360,7 +424,9 @@ obj.doStuff(myVariable, myVariable_MyLib);`;
 `);
 
     const expectedResult = `const obj = {
-  [Symbol.for("doStuff")]: "{\\"mutations\\":[1]}",
+  [Symbol.for("doStuff")]: {
+    mutations: [1]
+  },
   doStuff: function aFunction() {
     const wow = 'wow';
     let wow_MyLib = Symbol("{\\"mutations\\":[3]}");

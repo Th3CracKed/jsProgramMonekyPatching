@@ -14,6 +14,7 @@ export function transform(code: string): string {
             appendArgumentsToFunctionInsideAnObject(path);
         },
         ObjectExpression(path: any) {
+            if (!path?.node?.loc) { return; }
             addSymbolToObject(path);
         },
         VariableDeclarator(path: any) {
@@ -145,19 +146,25 @@ function addSymbolForClassAssignment(path: any, mutationPos: number) {
 }
 
 function addSymbolForObjectAssignment(path: any, mutationPos: number) {
+    const symbolName = getSymbolName(path.node.left.property.name);
     const operator = path.node.operator;
-    const reference = { mutations: [mutationPos] };
-    const right = t.stringLiteral(JSON.stringify(reference));
+    const right = t.objectExpression([t.objectProperty(t.identifier('mutations'), t.arrayExpression([t.numericLiteral(mutationPos)]))]);
     const objectId = t.identifier(path.node.left.object.name);
     const symbol = getSymbol(path.node.left.property.name, true);
     const mutatedLeftVal = t.memberExpression(objectId, symbol, true);
     const assignmentExpression = t.assignmentExpression(operator, mutatedLeftVal, right);
-    path.getStatementParent().insertAfter(t.expressionStatement(assignmentExpression));
+    const ifStatementBlock = t.ifStatement(
+        mutatedLeftVal,
+        t.blockStatement(getMutateExistingSymbolStatementForObject(path, symbolName, mutationPos).reverse()),
+        t.blockStatement([t.expressionStatement(assignmentExpression)])
+    );
+    path.getStatementParent().insertAfter(ifStatementBlock);
+
 }
 
 function addSymbolForPrimitiveAssignment(path: any, mutationPos: number) {
     const symbolName = getSymbolName(path.node.left.name);
-    const doSymbolExists = doSymbolAlreadyExists(path, symbolName); // todo apply this to member expression 
+    const doSymbolExists = doSymbolAlreadyExists(path, symbolName);
     if (doSymbolExists) {
         getMutateExistingSymbolStatement(symbolName, mutationPos).forEach(statement => path.parentPath.insertAfter(statement));
     } else {
@@ -188,9 +195,8 @@ function appendArgumentsToFunctionCall(path: NodePath<t.ExpressionStatement>) {
 
 function addSymbolToObject(path: any) {
     const mutationPos = path.node?.loc?.start?.line;
-    const reference = { mutations: [mutationPos] };
     R.clone(path.node.properties).forEach((property: any) => {
-        path.unshiftContainer("properties", addObjectProperty(property.key.name, JSON.stringify(reference)));
+        path.unshiftContainer("properties", addObjectProperty(property.key.name, mutationPos));
     });
 }
 
@@ -252,6 +258,12 @@ function getMutateExistingSymbolStatement(symbolName: string, mutationPos: numbe
     ];
 }
 
+function getMutateExistingSymbolStatementForObject(path: any, symbolName: string, mutationPos: number) {
+    return [
+        pushNewPositionToJsonForObject(path, mutationPos),
+    ];
+}
+
 function getMutateExistingSymbolStatementForClass(symbolName: string, mutationPos: number) {
     return [
         getAParsedJsonStoredInSymbolForClass(symbolName),
@@ -276,6 +288,15 @@ function getAParsedJsonStoredInSymbolForClass(symbolName: string): t.ExpressionS
 
 function pushNewPositionToJson(symbolName: string, mutationPos: number) {
     const left = t.identifier(`${symbolName}_parsed`);
+    const memberExpression = t.memberExpression(t.memberExpression(left, t.identifier('mutations')), t.identifier('push'));
+    const parameters = [t.numericLiteral(mutationPos)];
+    return t.expressionStatement(t.callExpression(memberExpression, parameters));
+}
+
+function pushNewPositionToJsonForObject(path: any, mutationPos: number) {
+    const objectId = t.identifier(path.node.left.object.name);
+    const symbol = getSymbol(path.node.left.property.name, true);
+    const left = t.memberExpression(objectId, symbol, true);
     const memberExpression = t.memberExpression(t.memberExpression(left, t.identifier('mutations')), t.identifier('push'));
     const parameters = [t.numericLiteral(mutationPos)];
     return t.expressionStatement(t.callExpression(memberExpression, parameters));
@@ -315,10 +336,13 @@ function declareSymbolForClass(startLine: number, name: string): t.ExpressionSta
     return t.expressionStatement(t.assignmentExpression('=', left, getSymbol(JSON.stringify(reference))));
 }
 
-function addObjectProperty(keyName: string, value: string): t.ObjectProperty {
+function addObjectProperty(keyName: string, mutationPos: number): t.ObjectProperty {
+    const mutationProperty = t.objectProperty(t.identifier('mutations'), t.arrayExpression([t.numericLiteral(mutationPos)]));
     return t.objectProperty(
         getSymbol(keyName, true),
-        t.stringLiteral(value), true
+        t.objectExpression([
+            mutationProperty
+        ]), true
     );
 }
 
