@@ -252,9 +252,9 @@ function addSymbolForClass(path: any, forVarName: string, mutationPos: number) {
 
 function getMutateExistingSymbolStatement(symbolName: string, mutationPos: number) {
     return [
-        getAParsedJsonStoredInSymbol(symbolName),
+        getStringifiedJson(symbolName),
         pushNewPositionToJson(symbolName, mutationPos),
-        stringifyTheNewSymbolIntoJson(symbolName)
+        parseTheNewSymbolIntoJson(symbolName)
     ];
 }
 
@@ -268,11 +268,11 @@ function getMutateExistingSymbolStatementForClass(symbolName: string, mutationPo
     return [
         getAParsedJsonStoredInSymbolForClass(symbolName),
         pushNewPositionToJson(symbolName, mutationPos),
-        stringifyTheNewSymbolIntoJson(symbolName)
+        parseTheNewSymbolIntoJson(symbolName)
     ];
 }
 
-function getAParsedJsonStoredInSymbol(symbolName: string): t.ExpressionStatement {
+function getStringifiedJson(symbolName: string): t.ExpressionStatement {
     const left = t.identifier(symbolName);
     const parameters = [t.callExpression(t.memberExpression(t.identifier('JSON'), t.identifier('stringify')), [t.identifier(`${symbolName}_parsed`)])];
     const right = t.callExpression(t.identifier('Symbol'), parameters);
@@ -302,7 +302,7 @@ function pushNewPositionToJsonForObject(path: any, mutationPos: number) {
     return t.expressionStatement(t.callExpression(memberExpression, parameters));
 }
 
-function stringifyTheNewSymbolIntoJson(symbolName: string) {
+function parseTheNewSymbolIntoJson(symbolName: string) {
     const left = t.identifier(`${symbolName}_parsed`);
     const jsonParse = t.memberExpression(t.identifier('JSON'), t.identifier('parse'));
     const parameters = [t.memberExpression(t.identifier(symbolName), t.identifier('description'))];
